@@ -5,10 +5,9 @@ import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Plus, X } from "lucide-react";
 
 const formSchema = z.object({
   name: z.string().trim().min(2, { message: "Name must be at least 2 characters" }).max(100, { message: "Name must be less than 100 characters" }),
@@ -16,13 +15,14 @@ const formSchema = z.object({
   panchayath: z.string().trim().min(2, { message: "Panchayath is required" }).max(100, { message: "Panchayath must be less than 100 characters" }),
   ward: z.string().trim().min(1, { message: "Ward is required" }).max(50, { message: "Ward must be less than 50 characters" }),
   userType: z.enum(["customer", "agent"], { required_error: "Please select user type" }),
-  products: z.string().trim().min(10, { message: "Please provide at least 10 characters describing the products/services" }).max(1000, { message: "Description must be less than 1000 characters" }),
+  products: z.array(z.string().trim().min(2, { message: "Product/Service must be at least 2 characters" }).max(200, { message: "Product/Service must be less than 200 characters" })).min(1, { message: "Please add at least one product/service" }),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 export function SurveyForm() {
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [products, setProducts] = useState<string[]>([""]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -32,15 +32,35 @@ export function SurveyForm() {
       panchayath: "",
       ward: "",
       userType: undefined,
-      products: "",
+      products: [""],
     },
   });
+
+  const addProductField = () => {
+    setProducts([...products, ""]);
+  };
+
+  const removeProductField = (index: number) => {
+    if (products.length > 1) {
+      const newProducts = products.filter((_, i) => i !== index);
+      setProducts(newProducts);
+      form.setValue("products", newProducts.filter(p => p.trim() !== ""));
+    }
+  };
+
+  const updateProductField = (index: number, value: string) => {
+    const newProducts = [...products];
+    newProducts[index] = value;
+    setProducts(newProducts);
+    form.setValue("products", newProducts.filter(p => p.trim() !== ""));
+  };
 
   function onSubmit(values: FormValues) {
     console.log("Survey submitted:", values);
     setIsSubmitted(true);
     toast.success("Survey submitted successfully!");
     form.reset();
+    setProducts([""]);
     
     // Reset success state after 5 seconds
     setTimeout(() => {
@@ -161,23 +181,52 @@ export function SurveyForm() {
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="products"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Products/Services You Want to See on Our App</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Please describe the products or services you would like to see on our app..."
-                  className="min-h-[120px] resize-none"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <FormLabel>Products/Services You Want to See on Our App</FormLabel>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addProductField}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add More
+            </Button>
+          </div>
+          
+          <div className="space-y-3">
+            {products.map((product, index) => (
+              <div key={index} className="flex gap-2 items-start">
+                <div className="flex-1">
+                  <Input
+                    placeholder={`Product/Service ${index + 1}`}
+                    value={product}
+                    onChange={(e) => updateProductField(index, e.target.value)}
+                  />
+                </div>
+                {products.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeProductField(index)}
+                    className="shrink-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+          
+          {form.formState.errors.products && (
+            <p className="text-sm font-medium text-destructive">
+              {form.formState.errors.products.message}
+            </p>
           )}
-        />
+        </div>
 
         <Button type="submit" size="lg" className="w-full">
           Submit Survey
