@@ -16,6 +16,7 @@ interface Survey {
   ward: string;
   user_type: string;
   created_at: string;
+  items?: { item_name: string; item_type: string }[];
 }
 
 interface ItemDemand {
@@ -31,6 +32,7 @@ export default function AdminPanel() {
   const [demandedItems, setDemandedItems] = useState<ItemDemand[]>([]);
   const [loading, setLoading] = useState(true);
   const [newPanchayath, setNewPanchayath] = useState("");
+  const [newWardCount, setNewWardCount] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -47,10 +49,13 @@ export default function AdminPanel() {
   async function fetchData() {
     setLoading(true);
     try {
-      // Fetch surveys
+      // Fetch surveys with their items
       const { data: surveysData, error: surveysError } = await supabase
         .from("surveys")
-        .select("*")
+        .select(`
+          *,
+          items:survey_items(item_name, item_type)
+        `)
         .order("created_at", { ascending: false });
 
       if (surveysError) throw surveysError;
@@ -94,15 +99,25 @@ export default function AdminPanel() {
       return;
     }
 
+    const wardCount = parseInt(newWardCount);
+    if (!newWardCount.trim() || isNaN(wardCount) || wardCount < 1) {
+      toast.error("Please enter a valid ward count");
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from("panchayaths")
-        .insert({ name: newPanchayath.trim() });
+        .insert({ 
+          name: newPanchayath.trim(),
+          ward_count: wardCount
+        });
 
       if (error) throw error;
 
       toast.success("Panchayath added successfully");
       setNewPanchayath("");
+      setNewWardCount("");
       
       // Refresh panchayaths list
       if (!panchayaths.includes(newPanchayath.trim())) {
@@ -173,12 +188,20 @@ export default function AdminPanel() {
             <CardTitle>Add Panchayath</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
               <Input
                 placeholder="Enter panchayath name"
                 value={newPanchayath}
                 onChange={(e) => setNewPanchayath(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addPanchayath()}
+                className="flex-1"
+              />
+              <Input
+                type="number"
+                placeholder="Number of wards"
+                value={newWardCount}
+                onChange={(e) => setNewWardCount(e.target.value)}
+                min="1"
+                className="sm:w-48"
               />
               <Button onClick={addPanchayath}>Add</Button>
             </div>
@@ -247,6 +270,7 @@ export default function AdminPanel() {
                     <TableHead>Panchayath</TableHead>
                     <TableHead>Ward</TableHead>
                     <TableHead>User Type</TableHead>
+                    <TableHead>Products/Services</TableHead>
                     <TableHead>Date</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -258,6 +282,18 @@ export default function AdminPanel() {
                       <TableCell>{survey.panchayath}</TableCell>
                       <TableCell>{survey.ward}</TableCell>
                       <TableCell className="capitalize">{survey.user_type}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {survey.items?.map((item, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-primary/10 text-primary"
+                            >
+                              {item.item_name}
+                            </span>
+                          ))}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         {new Date(survey.created_at).toLocaleDateString()}
                       </TableCell>
