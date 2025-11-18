@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { CheckCircle2, Plus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,8 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 const formSchema = z.object({
   name: z.string().trim().min(2, { message: "Name must be at least 2 characters" }).max(100, { message: "Name must be less than 100 characters" }),
   mobile: z.string().trim().regex(/^[6-9]\d{9}$/, { message: "Please enter a valid 10-digit mobile number" }),
-  panchayath: z.string().trim().min(2, { message: "Panchayath is required" }).max(100, { message: "Panchayath must be less than 100 characters" }),
-  ward: z.string().trim().min(1, { message: "Ward is required" }).max(50, { message: "Ward must be less than 50 characters" }),
+  panchayath: z.string().min(1, { message: "Please select a panchayath" }),
+  ward: z.string().min(1, { message: "Please select a ward" }),
   userType: z.enum(["customer", "agent"], { required_error: "Please select user type" }),
   products: z.array(z.string().trim().min(2, { message: "Product/Service must be at least 2 characters" }).max(200, { message: "Product/Service must be less than 200 characters" })).min(1, { message: "Please add at least one product/service" }),
 });
@@ -24,7 +25,23 @@ type FormValues = z.infer<typeof formSchema>;
 export function SurveyForm() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [products, setProducts] = useState<string[]>([""]);
+  const [panchayaths, setPanchayaths] = useState<{ name: string; ward_count: number }[]>([]);
+  const [selectedPanchayathWards, setSelectedPanchayathWards] = useState<number>(0);
 
+  useEffect(() => {
+    fetchPanchayaths();
+  }, []);
+
+  async function fetchPanchayaths() {
+    const { data, error } = await supabase
+      .from("panchayaths")
+      .select("name, ward_count")
+      .order("name");
+
+    if (!error && data) {
+      setPanchayaths(data);
+    }
+  }
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -159,9 +176,28 @@ export function SurveyForm() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Panchayath</FormLabel>
-                <FormControl>
-                  <Input placeholder="Enter your panchayath" {...field} />
-                </FormControl>
+                <Select
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                    const selected = panchayaths.find(p => p.name === value);
+                    setSelectedPanchayathWards(selected?.ward_count || 0);
+                    form.setValue("ward", ""); // Reset ward when panchayath changes
+                  }}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select panchayath" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {panchayaths.map((p) => (
+                      <SelectItem key={p.name} value={p.name}>
+                        {p.name} ({p.ward_count} wards)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -172,10 +208,25 @@ export function SurveyForm() {
             name="ward"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Ward</FormLabel>
-                <FormControl>
-                  <Input placeholder="Enter your ward" {...field} />
-                </FormControl>
+                <FormLabel>Ward Number</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  value={field.value}
+                  disabled={!selectedPanchayathWards}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder={selectedPanchayathWards ? "Select ward" : "Select panchayath first"} />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {Array.from({ length: selectedPanchayathWards }, (_, i) => i + 1).map((ward) => (
+                      <SelectItem key={ward} value={ward.toString()}>
+                        Ward {ward}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
