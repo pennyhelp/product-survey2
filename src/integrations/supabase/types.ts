@@ -14,15 +14,122 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      panchayaths: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      survey_items: {
+        Row: {
+          created_at: string | null
+          id: string
+          item_name: string
+          item_type: string
+          survey_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          item_name: string
+          item_type: string
+          survey_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          item_name?: string
+          item_type?: string
+          survey_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_items_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      surveys: {
+        Row: {
+          created_at: string | null
+          id: string
+          mobile: string
+          name: string
+          panchayath: string
+          user_type: string
+          ward: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          mobile: string
+          name: string
+          panchayath: string
+          user_type: string
+          ward: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          mobile?: string
+          name?: string
+          panchayath?: string
+          user_type?: string
+          ward?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
+      app_role: "admin" | "user"
       item_category: "product" | "service"
     }
     CompositeTypes: {
@@ -151,6 +258,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "user"],
       item_category: ["product", "service"],
     },
   },
