@@ -5,8 +5,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Users, Package, TrendingUp } from "lucide-react";
+import { BarChart3, Users, Package, TrendingUp, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Survey {
   id: string;
@@ -24,15 +36,36 @@ interface ItemDemand {
   count: number;
 }
 
+interface Panchayath {
+  id: string;
+  name: string;
+  ward_count: number;
+  created_at: string;
+}
+
 export default function AdminPanel() {
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [filteredSurveys, setFilteredSurveys] = useState<Survey[]>([]);
-  const [panchayaths, setPanchayaths] = useState<string[]>([]);
+  const [panchayaths, setPanchayaths] = useState<Panchayath[]>([]);
   const [selectedPanchayath, setSelectedPanchayath] = useState<string>("all");
   const [demandedItems, setDemandedItems] = useState<ItemDemand[]>([]);
   const [loading, setLoading] = useState(true);
   const [newPanchayath, setNewPanchayath] = useState("");
   const [newWardCount, setNewWardCount] = useState("");
+  
+  // Edit dialogs
+  const [editPanchayathDialog, setEditPanchayathDialog] = useState(false);
+  const [editSurveyDialog, setEditSurveyDialog] = useState(false);
+  const [editingPanchayath, setEditingPanchayath] = useState<Panchayath | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [editingWardCount, setEditingWardCount] = useState("");
+  const [editingSurvey, setEditingSurvey] = useState<Survey | null>(null);
+  
+  // Delete dialogs
+  const [deletePanchayathDialog, setDeletePanchayathDialog] = useState(false);
+  const [deleteSurveyDialog, setDeleteSurveyDialog] = useState(false);
+  const [deletingPanchayath, setDeletingPanchayath] = useState<Panchayath | null>(null);
+  const [deletingSurvey, setDeletingSurvey] = useState<Survey | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -62,9 +95,14 @@ export default function AdminPanel() {
       setSurveys(surveysData || []);
       setFilteredSurveys(surveysData || []);
 
-      // Get unique panchayaths from surveys
-      const uniquePanchayaths = [...new Set(surveysData?.map(s => s.panchayath) || [])] as string[];
-      setPanchayaths(uniquePanchayaths);
+      // Fetch panchayaths from the panchayaths table
+      const { data: panchayathsData, error: panchayathsError } = await supabase
+        .from("panchayaths")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (panchayathsError) throw panchayathsError;
+      setPanchayaths(panchayathsData || []);
 
       // Fetch most demanded items
       const { data: itemsData, error: itemsError } = await supabase
@@ -118,7 +156,7 @@ export default function AdminPanel() {
       toast.success("Panchayath added successfully");
       setNewPanchayath("");
       setNewWardCount("");
-      
+      fetchData();
       // Refresh panchayaths list
       if (!panchayaths.includes(newPanchayath.trim())) {
         setPanchayaths([...panchayaths, newPanchayath.trim()]);
@@ -308,6 +346,155 @@ export default function AdminPanel() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Panchayath Dialog */}
+      <Dialog open={editPanchayathDialog} onOpenChange={setEditPanchayathDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Panchayath</DialogTitle>
+            <DialogDescription>Update panchayath details</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-name">Panchayath Name</Label>
+              <Input
+                id="edit-name"
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                placeholder="Panchayath Name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-ward-count">Ward Count</Label>
+              <Input
+                id="edit-ward-count"
+                type="number"
+                value={editingWardCount}
+                onChange={(e) => setEditingWardCount(e.target.value)}
+                placeholder="Ward Count"
+                min="1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPanchayathDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={updatePanchayath}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Panchayath Dialog */}
+      <AlertDialog open={deletePanchayathDialog} onOpenChange={setDeletePanchayathDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Panchayath</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deletingPanchayath?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={deletePanchayath} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Survey Dialog */}
+      <Dialog open={editSurveyDialog} onOpenChange={setEditSurveyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Survey</DialogTitle>
+            <DialogDescription>Update survey details</DialogDescription>
+          </DialogHeader>
+          {editingSurvey && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-survey-name">Name</Label>
+                <Input
+                  id="edit-survey-name"
+                  value={editingSurvey.name}
+                  onChange={(e) => setEditingSurvey({ ...editingSurvey, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-survey-mobile">Mobile</Label>
+                <Input
+                  id="edit-survey-mobile"
+                  value={editingSurvey.mobile}
+                  onChange={(e) => setEditingSurvey({ ...editingSurvey, mobile: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-survey-panchayath">Panchayath</Label>
+                <Select
+                  value={editingSurvey.panchayath}
+                  onValueChange={(value) => setEditingSurvey({ ...editingSurvey, panchayath: value })}
+                >
+                  <SelectTrigger id="edit-survey-panchayath">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {panchayaths.map(p => (
+                      <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-survey-ward">Ward</Label>
+                <Input
+                  id="edit-survey-ward"
+                  value={editingSurvey.ward}
+                  onChange={(e) => setEditingSurvey({ ...editingSurvey, ward: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-survey-type">User Type</Label>
+                <Select
+                  value={editingSurvey.user_type}
+                  onValueChange={(value) => setEditingSurvey({ ...editingSurvey, user_type: value })}
+                >
+                  <SelectTrigger id="edit-survey-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Citizen">Citizen</SelectItem>
+                    <SelectItem value="Business">Business</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditSurveyDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={updateSurvey}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Survey Dialog */}
+      <AlertDialog open={deleteSurveyDialog} onOpenChange={setDeleteSurveyDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Survey</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the survey from "{deletingSurvey?.name}"? This will also delete all associated survey items. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteSurvey} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
